@@ -1,313 +1,562 @@
-import React, { useState, useEffect } from 'react';
-import { Home, Building, Info, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import Papa from 'papaparse';
 
-const SwissHousingCalculator = () => {
-  const [data, setData] = useState([]);
-  const [selectedKanton, setSelectedKanton] = useState('Zürich');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const csvContent = await window.fs.readFile('schweizwohndatenkantone.csv', { encoding: 'utf8' });
-        const parsed = Papa.parse(csvContent, {
-          header: true,
-          skipEmptyLines: true,
-          delimitersToGuess: [',', '\t', '|', ';']
-        });
-
-        // Convert string values to numbers
-        const processedData = parsed.data.map(row => ({
-          kanton: row.Kanton,
-          wohneigentum: parseFloat(row.Wohneigentumsquote_2023?.replace(',', '.')) || null,
-          miete: parseFloat(row.Mietanteil_2023?.replace(',', '.')) || null,
-          zweitwohnung: parseFloat(row.Zweitwohnungsanteil_2000?.replace(',', '.')) || null,
-          erstwohnung: parseFloat(row.Erstwohnungsanteil_2000?.replace(',', '.')) || null
-        }));
-
-        setData(processedData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-lg">Lade Daten...</div>
-      </div>
-    );
-  }
-
-  const selectedData = data.find(d => d.kanton === selectedKanton);
-  
-  // Calculate statistics
-  const eigentumStats = {
-    avg: data.reduce((sum, d) => sum + (d.wohneigentum || 0), 0) / data.filter(d => d.wohneigentum).length,
-    max: data.reduce((max, d) => d.wohneigentum > max.wohneigentum ? d : max, data[0]),
-    min: data.filter(d => d.wohneigentum).reduce((min, d) => d.wohneigentum < min.wohneigentum ? d : min, data[0])
-  };
-
-  const zweitwohnungStats = {
-    avg: data.filter(d => d.zweitwohnung !== null).reduce((sum, d) => sum + d.zweitwohnung, 0) / data.filter(d => d.zweitwohnung !== null).length,
-    max: data.filter(d => d.zweitwohnung !== null).reduce((max, d) => d.zweitwohnung > max.zweitwohnung ? d : max, data.find(d => d.zweitwohnung !== null)),
-    min: data.filter(d => d.zweitwohnung !== null).reduce((min, d) => d.zweitwohnung < min.zweitwohnung ? d : min, data.find(d => d.zweitwohnung !== null))
-  };
-
-  const ComparisonBar = ({ value, avg, max, min, label, color }) => {
-    const maxValue = Math.max(value || 0, avg, max.value, min.value);
-    
-    return (
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-700">{label}</span>
-          <span className="text-lg font-bold" style={{ color }}>{value ? `${value.toFixed(1)}%` : 'N/A'}</span>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schweizer Wohndaten - Interaktiver Rechner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+        
+        .info-box {
+            background: #f0f4ff;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-box h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .info-box p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .selector-container {
+            padding: 30px;
+            background: #fafbfc;
+            text-align: center;
+        }
+        
+        .canton-selector {
+            display: inline-block;
+            position: relative;
+        }
+        
+        .canton-selector label {
+            font-size: 1.2em;
+            color: #333;
+            margin-right: 15px;
+            font-weight: 600;
+        }
+        
+        .canton-selector select {
+            font-size: 1.1em;
+            padding: 12px 20px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 250px;
+        }
+        
+        .canton-selector select:hover {
+            border-color: #764ba2;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .canton-selector select:focus {
+            outline: none;
+            border-color: #764ba2;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .data-container {
+            padding: 30px;
+            display: none;
+        }
+        
+        .data-container.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .canton-name {
+            text-align: center;
+            font-size: 2em;
+            color: #333;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .data-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 25px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .data-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        .data-card.ownership {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .data-card.secondary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .data-card h3 {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            opacity: 0.95;
+        }
+        
+        .data-value {
+            font-size: 3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .data-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .comparison-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        
+        .comparison-title {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .comparison-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .comparison-item.highlight {
+            border-color: #667eea;
+            background: linear-gradient(to bottom, #f0f4ff, white);
+        }
+        
+        .comparison-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .comparison-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .comparison-canton {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .data-source {
+            background: #f0f4ff;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .data-source h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .data-source ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .data-source li {
+            color: #666;
+            padding: 5px 0;
+            position: relative;
+            padding-left: 20px;
+        }
+        
+        .data-source li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+        }
+        
+        .no-data {
+            color: #999;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+        
+        .chart-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .bar-chart {
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            height: 250px;
+            padding: 20px;
+            border-left: 2px solid #ddd;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 10px;
+        }
+        
+        .bar {
+            width: 60px;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 5px 5px 0 0;
+            transition: all 0.5s ease;
+            position: relative;
+        }
+        
+        .bar-value {
+            position: absolute;
+            top: -25px;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .bar-label {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 Schweizer Wohndaten Rechner</h1>
+            <p>Interaktive Visualisierung von Wohneigentum und Zweitwohnungen nach Kantonen</p>
         </div>
-        <div className="relative">
-          {/* Background bar */}
-          <div className="w-full bg-gray-200 rounded-full h-8 relative">
-            {/* Selected value */}
-            {value && (
-              <div 
-                className="absolute top-0 left-0 h-full rounded-full flex items-center justify-end pr-2"
-                style={{ 
-                  width: `${(value / maxValue) * 100}%`,
-                  backgroundColor: color,
-                  opacity: 0.8
-                }}
-              >
-                <span className="text-xs text-white font-semibold">Gewählt</span>
-              </div>
-            )}
+        
+        <div class="info-box">
+            <h3>ℹ️ Über diesen Rechner</h3>
+            <p>Dieser interaktive Rechner zeigt Ihnen die Verteilung von Wohneigentum vs. Miete sowie Erst- vs. Zweitwohnungen in allen Schweizer Kantonen. Wählen Sie einen Kanton aus und vergleichen Sie die Werte mit dem Schweizer Durchschnitt sowie den Extremwerten. Die Daten stammen aus offiziellen Erhebungen und bieten einen umfassenden Überblick über die Wohnsituation in der Schweiz.</p>
+        </div>
+        
+        <div class="selector-container">
+            <div class="canton-selector">
+                <label for="cantonSelect">Wählen Sie einen Kanton:</label>
+                <select id="cantonSelect">
+                    <option value="">-- Bitte wählen --</option>
+                </select>
+            </div>
+        </div>
+        
+        <div id="dataContainer" class="data-container">
+            <h2 class="canton-name" id="cantonName"></h2>
             
-            {/* Markers */}
-            <div 
-              className="absolute top-0 h-full w-1 bg-blue-600"
-              style={{ left: `${(avg / maxValue) * 100}%` }}
-              title={`Durchschnitt: ${avg.toFixed(1)}%`}
-            />
-            <div 
-              className="absolute top-0 h-full w-1 bg-green-600"
-              style={{ left: `${(max.value / maxValue) * 100}%` }}
-              title={`Maximum: ${max.kanton} (${max.value.toFixed(1)}%)`}
-            />
-            <div 
-              className="absolute top-0 h-full w-1 bg-red-600"
-              style={{ left: `${(min.value / maxValue) * 100}%` }}
-              title={`Minimum: ${min.kanton} (${min.value.toFixed(1)}%)`}
-            />
-          </div>
+            <div class="data-grid">
+                <div class="data-card ownership">
+                    <h3>Wohneigentum</h3>
+                    <div class="data-value" id="ownershipRate">-</div>
+                    <div class="data-label">der Haushalte</div>
+                </div>
+                
+                <div class="data-card ownership">
+                    <h3>Mietwohnungen</h3>
+                    <div class="data-value" id="rentalRate">-</div>
+                    <div class="data-label">der Haushalte</div>
+                </div>
+                
+                <div class="data-card secondary">
+                    <h3>Zweitwohnungen</h3>
+                    <div class="data-value" id="secondaryRate">-</div>
+                    <div class="data-label">aller Wohnungen</div>
+                </div>
+                
+                <div class="data-card secondary">
+                    <h3>Erstwohnungen</h3>
+                    <div class="data-value" id="primaryRate">-</div>
+                    <div class="data-label">aller Wohnungen</div>
+                </div>
+            </div>
+            
+            <div class="comparison-container">
+                <h3 class="comparison-title">📊 Vergleich Wohneigentumsquote</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-item highlight">
+                        <div class="comparison-label">Gewählter Kanton</div>
+                        <div class="comparison-value" id="compCurrent">-</div>
+                        <div class="comparison-canton" id="compCurrentName"></div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-label">CH-Durchschnitt</div>
+                        <div class="comparison-value" id="compAverage">-</div>
+                        <div class="comparison-canton">Schweiz</div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-label">Höchster Wert</div>
+                        <div class="comparison-value" id="compMax">-</div>
+                        <div class="comparison-canton" id="compMaxCanton"></div>
+                    </div>
+                    <div class="comparison-item">
+                        <div class="comparison-label">Tiefster Wert</div>
+                        <div class="comparison-value" id="compMin">-</div>
+                        <div class="comparison-canton" id="compMinCanton"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 style="text-align: center; color: #333; margin-bottom: 20px;">Visuelle Darstellung</h3>
+                <div class="bar-chart" id="barChart"></div>
+            </div>
         </div>
         
-        {/* Legend */}
-        <div className="flex gap-4 mt-2 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-            <span>Ø {avg.toFixed(1)}%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-            <span>{max.kanton} ({max.value.toFixed(1)}%)</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-            <span>{min.kanton} ({min.value.toFixed(1)}%)</span>
-          </div>
+        <div class="data-source">
+            <h4>📈 Datenquellen</h4>
+            <ul>
+                <li><strong>Wohneigentum vs. Miete:</strong> Bundesamt für Statistik (BFS), Stand 2023</li>
+                <li><strong>Zweit- vs. Erstwohnungen:</strong> Eidgenössische Volkszählung 2000 (letzte verfügbare Vollerhebung)</li>
+                <li><strong>Hinweis:</strong> Seit 2016 gilt das Zweitwohnungsgesetz - Gemeinden mit über 20% Zweitwohnungsanteil dürfen grundsätzlich keine neuen Zweitwohnungen mehr bewilligen</li>
+            </ul>
         </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="max-w-6xl mx-auto p-6 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4 flex items-center gap-3">
-          <Home className="text-blue-600" />
-          Schweizer Wohnungsmarkt-Analyse
-        </h1>
-        
-        {/* Info Box */}
-        <div className="bg-blue-50 border-l-4 border-blue-600 p-4 rounded">
-          <div className="flex items-start gap-2">
-            <Info className="text-blue-600 mt-1" size={20} />
-            <div className="text-sm text-gray-700">
-              <p className="font-semibold mb-1">Über diese Analyse:</p>
-              <p>Vergleichen Sie die Wohnsituation in den Schweizer Kantonen. Die Daten zeigen:</p>
-              <ul className="list-disc list-inside mt-1">
-                <li><strong>Wohneigentum vs. Miete:</strong> Aktuelle Daten von 2023</li>
-                <li><strong>Zweitwohnungen:</strong> Letzte verfügbare Daten von 2000 (vor dem Zweitwohnungsgesetz 2016)</li>
-              </ul>
-              <p className="mt-2 text-xs italic">Datenquellen: Bundesamt für Statistik (BFS), Gebäude- und Wohnungserhebung</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Kanton Selection */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Wählen Sie einen Kanton:
-        </label>
-        <select 
-          value={selectedKanton} 
-          onChange={(e) => setSelectedKanton(e.target.value)}
-          className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg"
-        >
-          {data.map(d => (
-            <option key={d.kanton} value={d.kanton}>{d.kanton}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Wohneigentum vs. Miete */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Building className="text-purple-600" />
-            Wohneigentum vs. Miete (2023)
-          </h2>
-          
-          {selectedData && (
-            <>
-              <div className="mb-6">
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg">
-                  <div className="text-center flex-1">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {selectedData.wohneigentum?.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-gray-600">Wohneigentum</div>
-                  </div>
-                  <div className="w-px h-12 bg-gray-300"></div>
-                  <div className="text-center flex-1">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {selectedData.miete?.toFixed(1)}%
-                    </div>
-                    <div className="text-sm text-gray-600">Miete</div>
-                  </div>
-                </div>
-              </div>
-
-              <ComparisonBar 
-                value={selectedData.wohneigentum}
-                avg={eigentumStats.avg}
-                max={{ kanton: eigentumStats.max.kanton, value: eigentumStats.max.wohneigentum }}
-                min={{ kanton: eigentumStats.min.kanton, value: eigentumStats.min.wohneigentum }}
-                label="Wohneigentumsquote"
-                color="#9333ea"
-              />
-            </>
-          )}
-        </div>
-
-        {/* Zweitwohnungen */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Home className="text-green-600" />
-            Erst- vs. Zweitwohnungen (2000)
-          </h2>
-          
-          {selectedData && (
-            <>
-              <div className="mb-6">
-                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-yellow-50 rounded-lg">
-                  <div className="text-center flex-1">
-                    <div className="text-2xl font-bold text-green-600">
-                      {selectedData.erstwohnung ? `${selectedData.erstwohnung.toFixed(1)}%` : 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-600">Erstwohnungen</div>
-                  </div>
-                  <div className="w-px h-12 bg-gray-300"></div>
-                  <div className="text-center flex-1">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {selectedData.zweitwohnung ? `${selectedData.zweitwohnung.toFixed(1)}%` : 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-600">Zweitwohnungen</div>
-                  </div>
-                </div>
-              </div>
-
-              {selectedData.zweitwohnung !== null ? (
-                <ComparisonBar 
-                  value={selectedData.zweitwohnung}
-                  avg={zweitwohnungStats.avg}
-                  max={{ kanton: zweitwohnungStats.max.kanton, value: zweitwohnungStats.max.zweitwohnung }}
-                  min={{ kanton: zweitwohnungStats.min.kanton, value: zweitwohnungStats.min.zweitwohnung }}
-                  label="Zweitwohnungsanteil"
-                  color="#eab308"
-                />
-              ) : (
-                <div className="text-gray-500 text-center p-4 bg-gray-50 rounded-lg">
-                  Keine Daten zu Zweitwohnungen für diesen Kanton verfügbar
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Additional Insights */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
-        <h3 className="text-lg font-bold text-gray-800 mb-3">Wichtige Erkenntnisse</h3>
-        {selectedData && (
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="p-4 bg-purple-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                {selectedData.wohneigentum > eigentumStats.avg ? 
-                  <TrendingUp className="text-green-600" size={20} /> : 
-                  selectedData.wohneigentum < eigentumStats.avg ?
-                  <TrendingDown className="text-red-600" size={20} /> :
-                  <Minus className="text-gray-600" size={20} />
-                }
-                <span className="font-semibold text-sm">Eigentumsquote</span>
-              </div>
-              <p className="text-xs text-gray-600">
-                {selectedData.wohneigentum > eigentumStats.avg ? 
-                  `${(selectedData.wohneigentum - eigentumStats.avg).toFixed(1)}% über dem Durchschnitt` :
-                  selectedData.wohneigentum < eigentumStats.avg ?
-                  `${(eigentumStats.avg - selectedData.wohneigentum).toFixed(1)}% unter dem Durchschnitt` :
-                  'Entspricht dem Durchschnitt'
-                }
-              </p>
-            </div>
-
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Building className="text-blue-600" size={20} />
-                <span className="font-semibold text-sm">Charakteristik</span>
-              </div>
-              <p className="text-xs text-gray-600">
-                {selectedData.wohneigentum > 45 ? 'Ländlich geprägt' : 
-                 selectedData.wohneigentum < 30 ? 'Städtisch geprägt' : 
-                 'Gemischt urban-ländlich'}
-              </p>
-            </div>
-
-            {selectedData.zweitwohnung !== null && (
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Home className="text-yellow-600" size={20} />
-                  <span className="font-semibold text-sm">Zweitwohnungsgesetz</span>
-                </div>
-                <p className="text-xs text-gray-600">
-                  {selectedData.zweitwohnung > 20 ? 
-                    'Überschritt 2000 die 20%-Grenze (heute eingeschränkt)' : 
-                    'Unter der kritischen 20%-Grenze'}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </div>
-  );
-};
-
-export default SwissHousingCalculator;
+    
+    <script>
+        // Daten aus der CSV-Datei (konvertiert)
+        const cantonData = [
+            { "Kanton": "Wallis", "Wohneigentumsquote_2023": 53.6, "Mietanteil_2023": 46.4, "Zweitwohnungsanteil_2000": 35.7, "Erstwohnungsanteil_2000": 64.3 },
+            { "Kanton": "Jura", "Wohneigentumsquote_2023": 50.6, "Mietanteil_2023": 49.4, "Zweitwohnungsanteil_2000": 8.8, "Erstwohnungsanteil_2000": 91.2 },
+            { "Kanton": "Appenzell Innerrhoden", "Wohneigentumsquote_2023": 49.4, "Mietanteil_2023": 50.6, "Zweitwohnungsanteil_2000": null, "Erstwohnungsanteil_2000": null },
+            { "Kanton": "Glarus", "Wohneigentumsquote_2023": 47.3, "Mietanteil_2023": 52.7, "Zweitwohnungsanteil_2000": 15.2, "Erstwohnungsanteil_2000": 84.8 },
+            { "Kanton": "Appenzell Ausserrhoden", "Wohneigentumsquote_2023": 46.9, "Mietanteil_2023": 53.1, "Zweitwohnungsanteil_2000": null, "Erstwohnungsanteil_2000": null },
+            { "Kanton": "Uri", "Wohneigentumsquote_2023": 45.8, "Mietanteil_2023": 54.2, "Zweitwohnungsanteil_2000": 13.2, "Erstwohnungsanteil_2000": 86.8 },
+            { "Kanton": "Solothurn", "Wohneigentumsquote_2023": 43.8, "Mietanteil_2023": 56.2, "Zweitwohnungsanteil_2000": 6.0, "Erstwohnungsanteil_2000": 94.0 },
+            { "Kanton": "Aargau", "Wohneigentumsquote_2023": 43.4, "Mietanteil_2023": 56.6, "Zweitwohnungsanteil_2000": 5.6, "Erstwohnungsanteil_2000": 94.4 },
+            { "Kanton": "Thurgau", "Wohneigentumsquote_2023": 42.7, "Mietanteil_2023": 57.3, "Zweitwohnungsanteil_2000": 6.8, "Erstwohnungsanteil_2000": 93.2 },
+            { "Kanton": "Graubünden", "Wohneigentumsquote_2023": 42.2, "Mietanteil_2023": 57.8, "Zweitwohnungsanteil_2000": 37.1, "Erstwohnungsanteil_2000": 62.9 },
+            { "Kanton": "Basel-Landschaft", "Wohneigentumsquote_2023": 41.8, "Mietanteil_2023": 58.2, "Zweitwohnungsanteil_2000": 5.5, "Erstwohnungsanteil_2000": 94.5 },
+            { "Kanton": "Obwalden", "Wohneigentumsquote_2023": 41.4, "Mietanteil_2023": 58.6, "Zweitwohnungsanteil_2000": 22.4, "Erstwohnungsanteil_2000": 77.6 },
+            { "Kanton": "Freiburg", "Wohneigentumsquote_2023": 40.7, "Mietanteil_2023": 59.3, "Zweitwohnungsanteil_2000": 9.1, "Erstwohnungsanteil_2000": 90.9 },
+            { "Kanton": "Schaffhausen", "Wohneigentumsquote_2023": 39.9, "Mietanteil_2023": 60.1, "Zweitwohnungsanteil_2000": 7.3, "Erstwohnungsanteil_2000": 92.7 },
+            { "Kanton": "Schwyz", "Wohneigentumsquote_2023": 39.3, "Mietanteil_2023": 60.7, "Zweitwohnungsanteil_2000": 11.2, "Erstwohnungsanteil_2000": 88.8 },
+            { "Kanton": "St. Gallen", "Wohneigentumsquote_2023": 37.8, "Mietanteil_2023": 62.2, "Zweitwohnungsanteil_2000": 9.0, "Erstwohnungsanteil_2000": 91.0 },
+            { "Kanton": "Nidwalden", "Wohneigentumsquote_2023": 37.4, "Mietanteil_2023": 62.6, "Zweitwohnungsanteil_2000": 13.9, "Erstwohnungsanteil_2000": 86.1 },
+            { "Kanton": "Tessin", "Wohneigentumsquote_2023": 37.2, "Mietanteil_2023": 62.8, "Zweitwohnungsanteil_2000": 24.4, "Erstwohnungsanteil_2000": 75.6 },
+            { "Kanton": "Bern", "Wohneigentumsquote_2023": 36.5, "Mietanteil_2023": 63.5, "Zweitwohnungsanteil_2000": 10.9, "Erstwohnungsanteil_2000": 89.1 },
+            { "Kanton": "Schweiz", "Wohneigentumsquote_2023": 35.8, "Mietanteil_2023": 64.2, "Zweitwohnungsanteil_2000": 12.1, "Erstwohnungsanteil_2000": 87.9 },
+            { "Kanton": "Luzern", "Wohneigentumsquote_2023": 34.2, "Mietanteil_2023": 65.8, "Zweitwohnungsanteil_2000": 7.9, "Erstwohnungsanteil_2000": 92.1 },
+            { "Kanton": "Zug", "Wohneigentumsquote_2023": 32.9, "Mietanteil_2023": 67.1, "Zweitwohnungsanteil_2000": 6.5, "Erstwohnungsanteil_2000": 93.5 },
+            { "Kanton": "Waadt", "Wohneigentumsquote_2023": 30.0, "Mietanteil_2023": 70.0, "Zweitwohnungsanteil_2000": 14.0, "Erstwohnungsanteil_2000": 86.0 },
+            { "Kanton": "Neuenburg", "Wohneigentumsquote_2023": 29.9, "Mietanteil_2023": 70.1, "Zweitwohnungsanteil_2000": 9.8, "Erstwohnungsanteil_2000": 90.2 },
+            { "Kanton": "Zürich", "Wohneigentumsquote_2023": 26.7, "Mietanteil_2023": 73.3, "Zweitwohnungsanteil_2000": 5.7, "Erstwohnungsanteil_2000": 94.3 },
+            { "Kanton": "Genf", "Wohneigentumsquote_2023": 18.4, "Mietanteil_2023": 81.6, "Zweitwohnungsanteil_2000": 9.3, "Erstwohnungsanteil_2000": 90.7 },
+            { "Kanton": "Basel-Stadt", "Wohneigentumsquote_2023": 15.9, "Mietanteil_2023": 84.1, "Zweitwohnungsanteil_2000": 10.4, "Erstwohnungsanteil_2000": 89.6 }
+        ];
+        
+        // Schweiz-Durchschnitt
+        const swissAverage = cantonData.find(d => d.Kanton === "Schweiz");
+        
+        // Kantone ohne Schweiz-Durchschnitt für Dropdown
+        const cantons = cantonData.filter(d => d.Kanton !== "Schweiz").sort((a, b) => a.Kanton.localeCompare(b.Kanton));
+        
+        // Initialisierung
+        function init() {
+            const select = document.getElementById('cantonSelect');
+            cantons.forEach(canton => {
+                const option = document.createElement('option');
+                option.value = canton.Kanton;
+                option.textContent = canton.Kanton;
+                select.appendChild(option);
+            });
+            
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    displayCantonData(this.value);
+                } else {
+                    document.getElementById('dataContainer').classList.remove('active');
+                }
+            });
+        }
+        
+        function displayCantonData(cantonName) {
+            const canton = cantonData.find(d => d.Kanton === cantonName);
+            if (!canton) return;
+            
+            const container = document.getElementById('dataContainer');
+            container.classList.add('active');
+            
+            // Kantonsname
+            document.getElementById('cantonName').textContent = cantonName;
+            
+            // Hauptdaten
+            document.getElementById('ownershipRate').textContent = canton.Wohneigentumsquote_2023 ? canton.Wohneigentumsquote_2023.toFixed(1) + '%' : '-';
+            document.getElementById('rentalRate').textContent = canton.Mietanteil_2023 ? canton.Mietanteil_2023.toFixed(1) + '%' : '-';
+            
+            if (canton.Zweitwohnungsanteil_2000 !== null) {
+                document.getElementById('secondaryRate').textContent = canton.Zweitwohnungsanteil_2000.toFixed(1) + '%';
+                document.getElementById('primaryRate').textContent = canton.Erstwohnungsanteil_2000.toFixed(1) + '%';
+            } else {
+                document.getElementById('secondaryRate').innerHTML = '<span class="no-data">keine Daten</span>';
+                document.getElementById('primaryRate').innerHTML = '<span class="no-data">keine Daten</span>';
+            }
+            
+            // Vergleichsdaten für Wohneigentumsquote
+            const ownershipRates = cantons.map(c => c.Wohneigentumsquote_2023).filter(r => r !== null);
+            const maxOwnership = Math.max(...ownershipRates);
+            const minOwnership = Math.min(...ownershipRates);
+            const maxCanton = cantons.find(c => c.Wohneigentumsquote_2023 === maxOwnership);
+            const minCanton = cantons.find(c => c.Wohneigentumsquote_2023 === minOwnership);
+            
+            document.getElementById('compCurrent').textContent = canton.Wohneigentumsquote_2023.toFixed(1) + '%';
+            document.getElementById('compCurrentName').textContent = cantonName;
+            document.getElementById('compAverage').textContent = swissAverage.Wohneigentumsquote_2023.toFixed(1) + '%';
+            document.getElementById('compMax').textContent = maxOwnership.toFixed(1) + '%';
+            document.getElementById('compMaxCanton').textContent = maxCanton.Kanton;
+            document.getElementById('compMin').textContent = minOwnership.toFixed(1) + '%';
+            document.getElementById('compMinCanton').textContent = minCanton.Kanton;
+            
+            // Balkendiagramm
+            createBarChart(canton);
+        }
+        
+        function createBarChart(canton) {
+            const chartContainer = document.getElementById('barChart');
+            chartContainer.innerHTML = '';
+            
+            const data = [
+                { label: 'Wohneigentum', value: canton.Wohneigentumsquote_2023, color: 'linear-gradient(to top, #f093fb, #f5576c)' },
+                { label: 'Mietwohnungen', value: canton.Mietanteil_2023, color: 'linear-gradient(to top, #667eea, #764ba2)' }
+            ];
+            
+            if (canton.Zweitwohnungsanteil_2000 !== null) {
+                data.push(
+                    { label: 'Zweitwohnungen', value: canton.Zweitwohnungsanteil_2000, color: 'linear-gradient(to top, #4facfe, #00f2fe)' },
+                    { label: 'Erstwohnungen', value: canton.Erstwohnungsanteil_2000, color: 'linear-gradient(to top, #43e97b, #38f9d7)' }
+                );
+            }
+            
+            const maxValue = 100;
+            
+            data.forEach(item => {
+                const barGroup = document.createElement('div');
+                barGroup.className = 'bar-group';
+                
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                const height = (item.value / maxValue) * 200;
+                bar.style.height = '0px';
+                bar.style.background = item.color;
+                
+                const barValue = document.createElement('div');
+                barValue.className = 'bar-value';
+                barValue.textContent = item.value ? item.value.toFixed(1) + '%' : '-';
+                bar.appendChild(barValue);
+                
+                const barLabel = document.createElement('div');
+                barLabel.className = 'bar-label';
+                barLabel.textContent = item.label;
+                
+                barGroup.appendChild(bar);
+                barGroup.appendChild(barLabel);
+                chartContainer.appendChild(barGroup);
+                
+                // Animation
+                setTimeout(() => {
+                    bar.style.height = height + 'px';
+                }, 100);
+            });
+        }
+        
+        // Start
+        init();
+    </script>
+</body>
+</html>
