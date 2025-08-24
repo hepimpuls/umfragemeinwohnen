@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eigenmietwert-Steuerrechner mit Lernmodul</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+        
+        /* Fortschrittsanzeige */
+        .progress-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .progress-title {
+            font-size: 1.1rem;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .progress-bar-container {
+            background: #f0f0f0;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 15px;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(135deg, #4caf50, #66bb6a);
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .progress-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        .progress-step {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .progress-step.completed {
+            background: linear-gradient(135deg, #4caf5015, #66bb6a15);
+            border-color: #4caf50;
+            color: #4caf50;
+            font-weight: 600;
+        }
+        
+        .progress-step.completed::before {
+            content: '✓ ';
+            font-weight: bold;
+        }
+        
+        /* Collapsible Sections */
+        .collapsible-section {
+            background: rgba(255,255,255,0.98);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .collapsible-header {
+            padding: 20px 25px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        
+        .collapsible-header:hover {
+            background: linear-gradient(135deg, #7685ec, #8457af);
+        }
+        
+        .collapsible-header::after {
+            content: '▼';
+            transition: transform 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .collapsible-section.collapsed .collapsible-header::after {
+            transform: rotate(-90deg);
+        }
+        
+        .collapsible-content {
+            padding: 25px;
+            max-height: 2000px;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .collapsible-section.collapsed .collapsible-content {
+            max-height: 0;
+            padding: 0 25px;
+        }
+        
+        /* Info Cards mit Quiz */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-card {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .info-card h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+        
+        .info-card p {
+            color: #555;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+        
+        /* Lernkontrolle */
+        .quiz-container {
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        
+        .quiz-question {
+            font-size: 0.85rem;
+            color: #444;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .quiz-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .quiz-option {
+            padding: 8px 12px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+        
+        .quiz-option:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .quiz-option.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .quiz-option.correct {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+            pointer-events: none;
+        }
+        
+        .quiz-option.incorrect {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            pointer-events: none;
+        }
+        
+        .quiz-feedback {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            display: none;
+        }
+        
+        .quiz-feedback.correct {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+            display: block;
+        }
+        
+        .quiz-feedback.incorrect {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            display: block;
+        }
+        
+        /* Calculator Box */
+        .calculator-box {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .input-section {
+            margin-bottom: 30px;
+        }
+        
+        .input-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .input-section h3::before {
+            content: '📋';
+            margin-right: 10px;
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .input-group {
+            position: relative;
+        }
+        
+        .input-group.filled {
+            animation: pulse 0.5s;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .info-tooltip {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            font-size: 12px;
+            line-height: 18px;
+            margin-left: 5px;
+            cursor: help;
+            position: relative;
+            font-weight: bold;
+        }
+        
+        .tooltip-content {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            white-space: nowrap;
+            font-size: 13px;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            max-width: 250px;
+            white-space: normal;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .info-tooltip:hover .tooltip-content {
+            opacity: 1;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            background: white;
+            cursor: pointer;
+        }
+        
+        select:hover, input:hover {
+            border-color: #b0b8f0;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        select.filled {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.02);
+        }
+        
+        /* Results Section */
+        .results-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .results-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .results-section h3::before {
+            content: '📊';
+            margin-right: 10px;
+        }
+        
+        .result-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .result-card {
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            transition: transform 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        
+        .result-card-label {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .result-card-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .result-card.positive .result-card-value {
+            color: #4caf50;
+        }
+        
+        .result-card.negative .result-card-value {
+            color: #f44336;
+        }
+        
+        /* Completion Button */
+        .completion-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .completion-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .completion-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .completion-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .completion-message {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #4caf5015, #66bb6a15);
+            border-radius: 10px;
+            border: 2px solid #4caf50;
+            color: #4caf50;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .completion-message.show {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Calculation Breakdown */
+        .calculation-breakdown {
+            background: linear-gradient(135deg, #f5f7fa, #ffffff);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .calculation-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s;
+        }
+        
+        .calculation-item:hover {
+            background: rgba(102, 126, 234, 0.05);
+            padding-left: 10px;
+            padding-right: 10px;
+            margin-left: -10px;
+            margin-right: -10px;
+            border-radius: 5px;
+        }
+        
+        .calculation-item:last-child {
+            border-bottom: none;
+        }
+        
+        .calculation-label {
+            color: #555;
+            font-size: 0.95rem;
+        }
+        
+        .calculation-value {
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+        
+        .positive-value {
+            color: #4caf50;
+        }
+        
+        .negative-value {
+            color: #f44336;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .highlight-box .calculation-item {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        /* Specific Info Lists */
+        .deduction-list {
+            background: rgba(76, 175, 80, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .deduction-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(76, 175, 80, 0.2);
+            font-size: 0.9rem;
+            color: #333;
+        }
+        
+        .deduction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .deduction-item::before {
+            content: '✓ ';
+            color: #4caf50;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        
+        @media (max-width: 600px) {
+            .input-grid, .result-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .calculator-box {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Eigenmietwert-Steuerrechner</h1>
+        <p class="subtitle">Interaktives Lernmodul mit Fortschrittskontrolle</p>
+        
+        <!-- Fortschrittsanzeige -->
+        <div class="progress-container">
+            <div class="progress-title">📈 Ihr Lernfortschritt</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            <div class="progress-steps">
+                <div class="progress-step" id="step1">Grundlagen verstanden</div>
+                <div class="progress-step" id="step2">Hypothek-Wissen</div>
+                <div class="progress-step" id="step3">Unterhaltsabzüge</div>
+                <div class="progress-step" id="step4">Felder ausgefüllt</div>
+                <div class="progress-step" id="step5">Durchführung bestätigt</div>
+            </div>
+        </div>
+        
+        <!-- Detaillierte Informationen zum Eigenmietwert -->
+        <div class="collapsible-section" id="detailInfo">
+            <div class="collapsible-header" onclick="toggleSection('detailInfo')">
+                📚 Grundlagen zum Eigenmietwert
+            </div>
+            <div class="collapsible-content">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>Was ist der Eigenmietwert?</h4>
+                        <p>Der Eigenmietwert entspricht den theoretischen Mieteinnahmen, die Sie erzielen könnten, wenn Sie Ihre Immobilie vermieten würden. Er beträgt 60-70% der Marktmiete.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Wie viel Prozent der Marktmiete beträgt der Eigenmietwert mindestens?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q1', false)">40%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q1', false)">50%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q1', true)">60%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q1', false)">80%</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q1"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Warum gibt es diese Steuer?</h4>
+                        <p>Der Eigenmietwert sorgt für steuerliche Gleichstellung zwischen Mietern und Eigentümern. Da Eigentümer Hypothekarzinsen und Unterhalt abziehen können, müssen sie im Gegenzug den Eigenmietwert versteuern.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Was ist der Hauptgrund für den Eigenmietwert?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q2', false)">Zusätzliche Staatseinnahmen</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q2', true)">Steuerliche Gleichstellung</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q2', false)">Immobilienregulierung</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q2', false)">Mietpreiskontrolle</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q2"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Berechnung des Eigenmietwerts</h4>
+                        <p>Die kantonale Steuerbehörde schätzt den Wert basierend auf Wohnfläche, Lage, Baujahr und Bauweise. Der Wert variiert je nach Kanton.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Wer legt den Eigenmietwert fest?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q3', false)">Der Bund</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q3', true)">Die kantonale Steuerbehörde</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q3', false)">Die Gemeinde</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q3', false)">Der Hauseigentümer</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informationen zu Hypotheken -->
+        <div class="collapsible-section collapsed" id="hypothekInfo">
+            <div class="collapsible-header" onclick="toggleSection('hypothekInfo')">
+                🏦 Hypotheken und Steuervorteile
+            </div>
+            <div class="collapsible-content">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>Hypothekarzinsen als Abzug</h4>
+                        <p>Hypothekarzinsen können vollständig vom steuerbaren Einkommen abgezogen werden. Je höher die Hypothek und der Zinssatz, desto grösser der Steuerabzug.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Wie viel der Hypothekarzinsen können Sie abziehen?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q4', false)">50%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q4', false)">75%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q4', true)">100%</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q4', false)">Maximum CHF 50'000</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q4"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Einfluss auf Vermögenssteuer</h4>
+                        <p>Hypothekarschulden reduzieren Ihr steuerbares Vermögen. Eine Hypothek von CHF 800'000 bedeutet CHF 800'000 weniger steuerbares Vermögen.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Wie wirkt sich eine Hypothek auf die Vermögenssteuer aus?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q5', false)">Keine Auswirkung</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q5', true)">Reduziert das steuerbare Vermögen</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q5', false)">Erhöht das steuerbare Vermögen</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q5', false)">Nur bei Zinsen über 3%</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q5"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Direkte vs. indirekte Amortisation</h4>
+                        <p>Bei der indirekten Amortisation über die Säule 3a bleiben die Hypothekarzinsabzüge erhalten und Sie können zusätzlich die Säule 3a-Einzahlungen abziehen.</p>
+                        
+                        <div class="quiz-container">
+                            <div class="quiz-question">❓ Was ist der Vorteil der indirekten Amortisation?</div>
+                            <div class="quiz-options">
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q6', false)">Schnellere Rückzahlung</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q6', false)">Tiefere Zinsen</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q6', true)">Doppelte Steuerabzüge</div>
+                                <div class="quiz-option" onclick="checkAnswer(this, 'q6', false)">Keine Vorteile</div>
+                            </div>
+                            <div class="quiz-feedback" id="feedback-q6"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informationen zu Unterhaltsabzügen -->
+        <div class="collapsible-section collapsed" id="unterhaltInfo">
+            <div class="collapsible-header" onclick="toggleSection('unterhaltInfo')">
+                🔧 Unterhaltsabzüge optimal nutzen
+            </div>
+            <div class="collapsible-content">
+                <div class="info-card">
+                    <h4>Pauschal oder effektiv?</h4>
+                    <p>Sie können zwischen dem Pauschalabzug (10-20% des Eigenmietwerts) oder den effektiven Kosten wählen. Bei älteren Immobilien lohnen sich oft die effektiven Kosten.</p>
+                    
+                    <div class="quiz-container">
+                        <div class="quiz-question">❓ Wie hoch ist der pauschale Unterhaltsabzug?</div>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q7', false)">5-10% des Eigenmietwerts</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q7', true)">10-20% des Eigenmietwerts</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q7', false)">20-30% des Eigenmietwerts</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q7', false)">Fix CHF 10'000</div>
+                        </div>
+                        <div class="quiz-feedback" id="feedback-q7"></div>
+                    </div>
+                </div>
+                
+                <div class="info-card">
+                    <h4>Was ist abzugsfähig?</h4>
+                    <div class="deduction-list">
+                        <div class="deduction-item">Renovationen von Fassade, Dach, Böden</div>
+                        <div class="deduction-item">Reparaturen (Sanitär, Maler, Schreiner)</div>
+                        <div class="deduction-item">Ersatz von eingebauten Geräten</div>
+                        <div class="deduction-item">Energiesanierungen (Isolation, Solaranlagen)</div>
+                        <div class="deduction-item">Gebäudeversicherungsprämien</div>
+                        <div class="deduction-item">Gartenpflege und Unterhalt</div>
+                        <div class="deduction-item">Kaminfeger und Service-Abos</div>
+                    </div>
+                </div>
+                
+                <div class="info-card">
+                    <h4>Was ist NICHT abzugsfähig?</h4>
+                    <div class="deduction-list" style="background: rgba(244, 67, 54, 0.05);">
+                        <div class="deduction-item" style="color: #f44336;">❌ Wertvermehrende Investitionen</div>
+                        <div class="deduction-item" style="color: #f44336;">❌ Luxussanierungen</div>
+                        <div class="deduction-item" style="color: #f44336;">❌ Neubauten und Anbauten</div>
+                        <div class="deduction-item" style="color: #f44336;">❌ Erstanschaffungen</div>
+                    </div>
+                    
+                    <div class="quiz-container">
+                        <div class="quiz-question">❓ Welche Kosten sind NICHT abzugsfähig?</div>
+                        <div class="quiz-options">
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q8', false)">Dachreparaturen</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q8', false)">Heizungsersatz</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q8', true)">Wintergarten-Anbau</div>
+                            <div class="quiz-option" onclick="checkAnswer(this, 'q8', false)">Malerarbeiten</div>
+                        </div>
+                        <div class="quiz-feedback" id="feedback-q8"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Hauptrechner -->
+        <div class="calculator-box">
+            <div class="input-section">
+                <h3>Ihre Angaben</h3>
+                <div class="input-grid">
+                    <div class="input-group" id="input1">
+                        <label>
+                            Immobilienwert
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Der aktuelle Verkehrswert Ihrer Immobilie</span>
+                            </span>
+                        </label>
+                        <select id="propertyValue" onchange="calculate(); checkField('input1')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="500000">CHF 500'000</option>
+                            <option value="750000">CHF 750'000</option>
+                            <option value="1000000">CHF 1'000'000</option>
+                            <option value="1250000">CHF 1'250'000</option>
+                            <option value="1500000">CHF 1'500'000</option>
+                            <option value="2000000">CHF 2'000'000</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" id="input2">
+                        <label>
+                            Arbeitseinkommen (jährlich)
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Ihr jährliches Bruttoeinkommen ohne Eigenmietwert</span>
+                            </span>
+                        </label>
+                        <select id="income" onchange="calculate(); checkField('input2')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="60000">CHF 60'000</option>
+                            <option value="80000">CHF 80'000</option>
+                            <option value="100000">CHF 100'000</option>
+                            <option value="120000">CHF 120'000</option>
+                            <option value="150000">CHF 150'000</option>
+                            <option value="200000">CHF 200'000</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" id="input3">
+                        <label>
+                            Hypothek
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Je höher die Hypothek, desto mehr Zinsen können Sie abziehen</span>
+                            </span>
+                        </label>
+                        <select id="mortgage" onchange="calculate(); checkField('input3')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="0">Keine Hypothek</option>
+                            <option value="200000">CHF 200'000</option>
+                            <option value="400000">CHF 400'000</option>
+                            <option value="600000">CHF 600'000</option>
+                            <option value="800000">CHF 800'000</option>
+                            <option value="1000000">CHF 1'000'000</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" id="input4">
+                        <label>
+                            Hypothekarzins
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Aktueller Zinssatz Ihrer Hypothek</span>
+                            </span>
+                        </label>
+                        <select id="interestRate" onchange="calculate(); checkField('input4')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="1.0">1.0%</option>
+                            <option value="1.5">1.5%</option>
+                            <option value="2.0">2.0%</option>
+                            <option value="2.5">2.5%</option>
+                            <option value="3.0">3.0%</option>
+                            <option value="5.0">5.0% (Kalkulatorisch)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" id="input5">
+                        <label>
+                            Unterhaltskosten
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Pauschal oder effektive Kosten mit Belegen</span>
+                            </span>
+                        </label>
+                        <select id="maintenance" onchange="calculate(); checkField('input5')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="pauschal">Pauschal (10% des Eigenmietwerts)</option>
+                            <option value="5000">CHF 5'000 (effektiv)</option>
+                            <option value="10000">CHF 10'000 (effektiv)</option>
+                            <option value="15000">CHF 15'000 (effektiv)</option>
+                            <option value="20000">CHF 20'000 (effektiv)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group" id="input6">
+                        <label>
+                            Vermögenssteuersatz
+                            <span class="info-tooltip">?
+                                <span class="tooltip-content">Ihr Vermögenssteuersatz in Promille</span>
+                            </span>
+                        </label>
+                        <select id="wealthTaxRate" onchange="calculate(); checkField('input6')">
+                            <option value="">-- Bitte wählen --</option>
+                            <option value="2">2‰ (0.2%)</option>
+                            <option value="3">3‰ (0.3%)</option>
+                            <option value="4">4‰ (0.4%)</option>
+                            <option value="5">5‰ (0.5%)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="results-section">
+                <h3>Ihre Steuerberechnung</h3>
+                
+                <div class="result-cards">
+                    <div class="result-card">
+                        <div class="result-card-label">Eigenmietwert</div>
+                        <div class="result-card-value" id="eigenmietwertCard">CHF 0</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-card-label">Steuerbare Erhöhung</div>
+                        <div class="result-card-value" id="taxableIncreaseCard">CHF 0</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-card-label">Vermögenssteuer-Ersparnis</div>
+                        <div class="result-card-value" id="wealthTaxSavingCard">CHF 0</div>
+                    </div>
+                </div>
+                
+                <div class="calculation-breakdown">
+                    <h4 style="margin-bottom: 15px; color: #667eea;">Detaillierte Berechnung</h4>
+                    <div class="calculation-item">
+                        <span class="calculation-label">Eigenmietwert (70% der Marktmiete)</span>
+                        <span class="calculation-value negative-value" id="eigenmietwert">+ CHF 0</span>
+                    </div>
+                    <div class="calculation-item">
+                        <span class="calculation-label">Abzug Hypothekarzinsen</span>
+                        <span class="calculation-value positive-value" id="mortgageInterest">- CHF 0</span>
+                    </div>
+                    <div class="calculation-item">
+                        <span class="calculation-label">Abzug Unterhaltskosten</span>
+                        <span class="calculation-value positive-value" id="maintenanceCost">- CHF 0</span>
+                    </div>
+                    <div class="highlight-box">
+                        <div class="calculation-item">
+                            <span class="calculation-label">Zusätzliches steuerbares Einkommen</span>
+                            <span class="calculation-value" id="netIncomeIncrease">CHF 0</span>
+                        </div>
+                        <div class="calculation-item">
+                            <span class="calculation-label"><strong>Gesamteffekt auf Ihre Steuern</strong></span>
+                            <span class="calculation-value" id="totalEffect"><strong>CHF 0</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Durchführungsbestätigung -->
+        <div class="completion-section">
+            <h3 style="color: #667eea; margin-bottom: 20px;">🎯 Lernmodul abschliessen</h3>
+            <p style="margin-bottom: 20px; color: #666;">Haben Sie alle Informationen verstanden und die Berechnung durchgeführt?</p>
+            <button class="completion-button" id="completionBtn" onclick="completeModule()" disabled>
+                Durchführung bestätigen
+            </button>
+            <div class="completion-message" id="completionMessage">
+                🎉 Gratulation! Sie haben das Lernmodul erfolgreich abgeschlossen und verstehen nun die Zusammenhänge des Eigenmietwerts!
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Progress tracking
+        let progress = {
+            grundlagen: false,
+            hypothek: false,
+            unterhalt: false,
+            felder: false,
+            bestaetigt: false
+        };
+        
+        let quizAnswers = {};
+        let fieldsFilled = {};
+        
+        function updateProgress() {
+            let completedSteps = 0;
+            
+            // Check quiz completion
+            if (quizAnswers.q1 && quizAnswers.q2 && quizAnswers.q3) {
+                progress.grundlagen = true;
+                document.getElementById('step1').classList.add('completed');
+                completedSteps++;
+            }
+            
+            if (quizAnswers.q4 && quizAnswers.q5 && quizAnswers.q6) {
+                progress.hypothek = true;
+                document.getElementById('step2').classList.add('completed');
+                completedSteps++;
+            }
+            
+            if (quizAnswers.q7 && quizAnswers.q8) {
+                progress.unterhalt = true;
+                document.getElementById('step3').classList.add('completed');
+                completedSteps++;
+            }
+            
+            // Check fields filled
+            if (Object.keys(fieldsFilled).length === 6 && Object.values(fieldsFilled).every(v => v)) {
+                progress.felder = true;
+                document.getElementById('step4').classList.add('completed');
+                completedSteps++;
+            }
+            
+            if (progress.bestaetigt) {
+                document.getElementById('step5').classList.add('completed');
+                completedSteps++;
+            }
+            
+            // Update progress bar
+            const percentage = (completedSteps / 5) * 100;
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = percentage + '%';
+            progressBar.textContent = Math.round(percentage) + '%';
+            
+            // Enable completion button
+            if (completedSteps >= 4) {
+                document.getElementById('completionBtn').disabled = false;
+            }
+        }
+        
+        function checkAnswer(element, questionId, isCorrect) {
+            // Remove previous selections
+            const options = element.parentElement.querySelectorAll('.quiz-option');
+            options.forEach(opt => {
+                opt.classList.remove('selected', 'correct', 'incorrect');
+                opt.onclick = null;
+            });
+            
+            // Mark answer
+            if (isCorrect) {
+                element.classList.add('correct');
+                quizAnswers[questionId] = true;
+                document.getElementById('feedback-' + questionId).className = 'quiz-feedback correct';
+                document.getElementById('feedback-' + questionId).textContent = '✓ Richtig! Gut gemacht!';
+            } else {
+                element.classList.add('incorrect');
+                document.getElementById('feedback-' + questionId).className = 'quiz-feedback incorrect';
+                document.getElementById('feedback-' + questionId).textContent = '✗ Leider falsch. Versuchen Sie es nochmal!';
+                
+                // Re-enable clicking after wrong answer
+                setTimeout(() => {
+                    options.forEach(opt => {
+                        opt.classList.remove('incorrect');
+                        opt.onclick = function() {
+                            checkAnswer(this, questionId, this.textContent.includes('60%') || 
+                                                        this.textContent.includes('Steuerliche Gleichstellung') ||
+                                                        this.textContent.includes('kantonale Steuerbehörde') ||
+                                                        this.textContent.includes('100%') ||
+                                                        this.textContent.includes('Reduziert das steuerbare Vermögen') ||
+                                                        this.textContent.includes('Doppelte Steuerabzüge') ||
+                                                        this.textContent.includes('10-20%') ||
+                                                        this.textContent.includes('Wintergarten'));
+                        };
+                    });
+                }, 1500);
+            }
+            
+            updateProgress();
+        }
+        
+        function checkField(fieldId) {
+            const select = document.querySelector('#' + fieldId + ' select');
+            if (select.value) {
+                fieldsFilled[fieldId] = true;
+                select.classList.add('filled');
+                document.getElementById(fieldId).classList.add('filled');
+            } else {
+                fieldsFilled[fieldId] = false;
+                select.classList.remove('filled');
+            }
+            updateProgress();
+        }
+        
+        function toggleSection(id) {
+            const section = document.getElementById(id);
+            section.classList.toggle('collapsed');
+        }
+        
+        function formatCHF(value) {
+            return 'CHF ' + Math.abs(Math.round(value)).toLocaleString('de-CH');
+        }
+        
+        function calculate() {
+            // Get values
+            const propertyValue = parseInt(document.getElementById('propertyValue').value) || 0;
+            const income = parseInt(document.getElementById('income').value) || 0;
+            const mortgage = parseInt(document.getElementById('mortgage').value) || 0;
+            const interestRate = parseFloat(document.getElementById('interestRate').value) / 100 || 0;
+            const maintenanceOption = document.getElementById('maintenance').value;
+            const wealthTaxRate = parseFloat(document.getElementById('wealthTaxRate').value) / 1000 || 0;
+            
+            // Calculate
+            const marketRent = propertyValue * 0.035;
+            const eigenmietwert = marketRent * 0.7;
+            const mortgageInterest = mortgage * interestRate;
+            
+            let maintenanceCost;
+            if (maintenanceOption === 'pauschal') {
+                maintenanceCost = eigenmietwert * 0.1;
+            } else {
+                maintenanceCost = parseInt(maintenanceOption) || 0;
+            }
+            
+            const netIncomeIncrease = Math.max(0, eigenmietwert - mortgageInterest - maintenanceCost);
+            const incomeTaxIncrease = netIncomeIncrease * 0.30;
+            const wealthTaxSaving = mortgage * wealthTaxRate;
+            const totalEffect = incomeTaxIncrease - wealthTaxSaving;
+            
+            // Update UI
+            document.getElementById('eigenmietwertCard').textContent = formatCHF(eigenmietwert);
+            document.getElementById('taxableIncreaseCard').textContent = formatCHF(netIncomeIncrease);
+            document.getElementById('wealthTaxSavingCard').textContent = formatCHF(wealthTaxSaving);
+            
+            document.getElementById('eigenmietwert').textContent = '+ ' + formatCHF(eigenmietwert);
+            document.getElementById('mortgageInterest').textContent = '- ' + formatCHF(mortgageInterest);
+            document.getElementById('maintenanceCost').textContent = '- ' + formatCHF(maintenanceCost);
+            document.getElementById('netIncomeIncrease').textContent = formatCHF(netIncomeIncrease);
+            
+            if (totalEffect > 0) {
+                document.getElementById('totalEffect').innerHTML = '<strong>' + formatCHF(totalEffect) + ' Mehrbelastung</strong>';
+                document.getElementById('totalEffect').className = 'calculation-value negative-value';
+            } else {
+                document.getElementById('totalEffect').innerHTML = '<strong>' + formatCHF(totalEffect) + ' Ersparnis</strong>';
+                document.getElementById('totalEffect').className = 'calculation-value positive-value';
+            }
+        }
+        
+        function completeModule() {
+            progress.bestaetigt = true;
+            updateProgress();
+            document.getElementById('completionMessage').classList.add('show');
+            document.getElementById('completionBtn').disabled = true;
+            document.getElementById('completionBtn').textContent = '✓ Abgeschlossen';
+        }
+        
+        // Initialize
+        updateProgress();
+    </script>
+</body>
+</html>
