@@ -1,0 +1,313 @@
+import React, { useState, useEffect } from 'react';
+import { Home, Building, Info, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import Papa from 'papaparse';
+
+const SwissHousingCalculator = () => {
+  const [data, setData] = useState([]);
+  const [selectedKanton, setSelectedKanton] = useState('Zürich');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const csvContent = await window.fs.readFile('schweizwohndatenkantone.csv', { encoding: 'utf8' });
+        const parsed = Papa.parse(csvContent, {
+          header: true,
+          skipEmptyLines: true,
+          delimitersToGuess: [',', '\t', '|', ';']
+        });
+
+        // Convert string values to numbers
+        const processedData = parsed.data.map(row => ({
+          kanton: row.Kanton,
+          wohneigentum: parseFloat(row.Wohneigentumsquote_2023?.replace(',', '.')) || null,
+          miete: parseFloat(row.Mietanteil_2023?.replace(',', '.')) || null,
+          zweitwohnung: parseFloat(row.Zweitwohnungsanteil_2000?.replace(',', '.')) || null,
+          erstwohnung: parseFloat(row.Erstwohnungsanteil_2000?.replace(',', '.')) || null
+        }));
+
+        setData(processedData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg">Lade Daten...</div>
+      </div>
+    );
+  }
+
+  const selectedData = data.find(d => d.kanton === selectedKanton);
+  
+  // Calculate statistics
+  const eigentumStats = {
+    avg: data.reduce((sum, d) => sum + (d.wohneigentum || 0), 0) / data.filter(d => d.wohneigentum).length,
+    max: data.reduce((max, d) => d.wohneigentum > max.wohneigentum ? d : max, data[0]),
+    min: data.filter(d => d.wohneigentum).reduce((min, d) => d.wohneigentum < min.wohneigentum ? d : min, data[0])
+  };
+
+  const zweitwohnungStats = {
+    avg: data.filter(d => d.zweitwohnung !== null).reduce((sum, d) => sum + d.zweitwohnung, 0) / data.filter(d => d.zweitwohnung !== null).length,
+    max: data.filter(d => d.zweitwohnung !== null).reduce((max, d) => d.zweitwohnung > max.zweitwohnung ? d : max, data.find(d => d.zweitwohnung !== null)),
+    min: data.filter(d => d.zweitwohnung !== null).reduce((min, d) => d.zweitwohnung < min.zweitwohnung ? d : min, data.find(d => d.zweitwohnung !== null))
+  };
+
+  const ComparisonBar = ({ value, avg, max, min, label, color }) => {
+    const maxValue = Math.max(value || 0, avg, max.value, min.value);
+    
+    return (
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-medium text-gray-700">{label}</span>
+          <span className="text-lg font-bold" style={{ color }}>{value ? `${value.toFixed(1)}%` : 'N/A'}</span>
+        </div>
+        <div className="relative">
+          {/* Background bar */}
+          <div className="w-full bg-gray-200 rounded-full h-8 relative">
+            {/* Selected value */}
+            {value && (
+              <div 
+                className="absolute top-0 left-0 h-full rounded-full flex items-center justify-end pr-2"
+                style={{ 
+                  width: `${(value / maxValue) * 100}%`,
+                  backgroundColor: color,
+                  opacity: 0.8
+                }}
+              >
+                <span className="text-xs text-white font-semibold">Gewählt</span>
+              </div>
+            )}
+            
+            {/* Markers */}
+            <div 
+              className="absolute top-0 h-full w-1 bg-blue-600"
+              style={{ left: `${(avg / maxValue) * 100}%` }}
+              title={`Durchschnitt: ${avg.toFixed(1)}%`}
+            />
+            <div 
+              className="absolute top-0 h-full w-1 bg-green-600"
+              style={{ left: `${(max.value / maxValue) * 100}%` }}
+              title={`Maximum: ${max.kanton} (${max.value.toFixed(1)}%)`}
+            />
+            <div 
+              className="absolute top-0 h-full w-1 bg-red-600"
+              style={{ left: `${(min.value / maxValue) * 100}%` }}
+              title={`Minimum: ${min.kanton} (${min.value.toFixed(1)}%)`}
+            />
+          </div>
+        </div>
+        
+        {/* Legend */}
+        <div className="flex gap-4 mt-2 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
+            <span>Ø {avg.toFixed(1)}%</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+            <span>{max.kanton} ({max.value.toFixed(1)}%)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-600 rounded-full"></div>
+            <span>{min.kanton} ({min.value.toFixed(1)}%)</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <h1 className="text-3xl font-bold text-gray-800 mb-4 flex items-center gap-3">
+          <Home className="text-blue-600" />
+          Schweizer Wohnungsmarkt-Analyse
+        </h1>
+        
+        {/* Info Box */}
+        <div className="bg-blue-50 border-l-4 border-blue-600 p-4 rounded">
+          <div className="flex items-start gap-2">
+            <Info className="text-blue-600 mt-1" size={20} />
+            <div className="text-sm text-gray-700">
+              <p className="font-semibold mb-1">Über diese Analyse:</p>
+              <p>Vergleichen Sie die Wohnsituation in den Schweizer Kantonen. Die Daten zeigen:</p>
+              <ul className="list-disc list-inside mt-1">
+                <li><strong>Wohneigentum vs. Miete:</strong> Aktuelle Daten von 2023</li>
+                <li><strong>Zweitwohnungen:</strong> Letzte verfügbare Daten von 2000 (vor dem Zweitwohnungsgesetz 2016)</li>
+              </ul>
+              <p className="mt-2 text-xs italic">Datenquellen: Bundesamt für Statistik (BFS), Gebäude- und Wohnungserhebung</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Kanton Selection */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Wählen Sie einen Kanton:
+        </label>
+        <select 
+          value={selectedKanton} 
+          onChange={(e) => setSelectedKanton(e.target.value)}
+          className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg"
+        >
+          {data.map(d => (
+            <option key={d.kanton} value={d.kanton}>{d.kanton}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Main Content */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Wohneigentum vs. Miete */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Building className="text-purple-600" />
+            Wohneigentum vs. Miete (2023)
+          </h2>
+          
+          {selectedData && (
+            <>
+              <div className="mb-6">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg">
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {selectedData.wohneigentum?.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-gray-600">Wohneigentum</div>
+                  </div>
+                  <div className="w-px h-12 bg-gray-300"></div>
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {selectedData.miete?.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-gray-600">Miete</div>
+                  </div>
+                </div>
+              </div>
+
+              <ComparisonBar 
+                value={selectedData.wohneigentum}
+                avg={eigentumStats.avg}
+                max={{ kanton: eigentumStats.max.kanton, value: eigentumStats.max.wohneigentum }}
+                min={{ kanton: eigentumStats.min.kanton, value: eigentumStats.min.wohneigentum }}
+                label="Wohneigentumsquote"
+                color="#9333ea"
+              />
+            </>
+          )}
+        </div>
+
+        {/* Zweitwohnungen */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Home className="text-green-600" />
+            Erst- vs. Zweitwohnungen (2000)
+          </h2>
+          
+          {selectedData && (
+            <>
+              <div className="mb-6">
+                <div className="flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-yellow-50 rounded-lg">
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-bold text-green-600">
+                      {selectedData.erstwohnung ? `${selectedData.erstwohnung.toFixed(1)}%` : 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-600">Erstwohnungen</div>
+                  </div>
+                  <div className="w-px h-12 bg-gray-300"></div>
+                  <div className="text-center flex-1">
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {selectedData.zweitwohnung ? `${selectedData.zweitwohnung.toFixed(1)}%` : 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-600">Zweitwohnungen</div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedData.zweitwohnung !== null ? (
+                <ComparisonBar 
+                  value={selectedData.zweitwohnung}
+                  avg={zweitwohnungStats.avg}
+                  max={{ kanton: zweitwohnungStats.max.kanton, value: zweitwohnungStats.max.zweitwohnung }}
+                  min={{ kanton: zweitwohnungStats.min.kanton, value: zweitwohnungStats.min.zweitwohnung }}
+                  label="Zweitwohnungsanteil"
+                  color="#eab308"
+                />
+              ) : (
+                <div className="text-gray-500 text-center p-4 bg-gray-50 rounded-lg">
+                  Keine Daten zu Zweitwohnungen für diesen Kanton verfügbar
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Additional Insights */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-3">Wichtige Erkenntnisse</h3>
+        {selectedData && (
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                {selectedData.wohneigentum > eigentumStats.avg ? 
+                  <TrendingUp className="text-green-600" size={20} /> : 
+                  selectedData.wohneigentum < eigentumStats.avg ?
+                  <TrendingDown className="text-red-600" size={20} /> :
+                  <Minus className="text-gray-600" size={20} />
+                }
+                <span className="font-semibold text-sm">Eigentumsquote</span>
+              </div>
+              <p className="text-xs text-gray-600">
+                {selectedData.wohneigentum > eigentumStats.avg ? 
+                  `${(selectedData.wohneigentum - eigentumStats.avg).toFixed(1)}% über dem Durchschnitt` :
+                  selectedData.wohneigentum < eigentumStats.avg ?
+                  `${(eigentumStats.avg - selectedData.wohneigentum).toFixed(1)}% unter dem Durchschnitt` :
+                  'Entspricht dem Durchschnitt'
+                }
+              </p>
+            </div>
+
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Building className="text-blue-600" size={20} />
+                <span className="font-semibold text-sm">Charakteristik</span>
+              </div>
+              <p className="text-xs text-gray-600">
+                {selectedData.wohneigentum > 45 ? 'Ländlich geprägt' : 
+                 selectedData.wohneigentum < 30 ? 'Städtisch geprägt' : 
+                 'Gemischt urban-ländlich'}
+              </p>
+            </div>
+
+            {selectedData.zweitwohnung !== null && (
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Home className="text-yellow-600" size={20} />
+                  <span className="font-semibold text-sm">Zweitwohnungsgesetz</span>
+                </div>
+                <p className="text-xs text-gray-600">
+                  {selectedData.zweitwohnung > 20 ? 
+                    'Überschritt 2000 die 20%-Grenze (heute eingeschränkt)' : 
+                    'Unter der kritischen 20%-Grenze'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SwissHousingCalculator;
